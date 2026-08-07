@@ -15,6 +15,7 @@
 #include <vector>
 #include <sstream>
 #include <cassert>
+#include <iostream>
 #include <mutex> // 引入互斥锁以保证多线程安全
 
 namespace mylog {
@@ -165,7 +166,14 @@ public:
     // 默认日志输出格式
     explicit Formatter(std::string pattern = "[%d{%H:%M:%S}][%t][%p][%c][%f:%l] %m%n")
         : _pattern(std::move(pattern)) {
-        assert(parsePattern()); // 初始化时立即解析格式串 
+        // ⚠️ 修复：parsePattern() 绝不能放进 assert()！
+        // assert 在 NDEBUG（release 构建）下会被预处理器整体替换成空，
+        // 导致格式解析从未执行、_items 永远为空，所有日志输出变成空串。
+        // 必须无条件调用，失败则明确报错退出。
+        if (!parsePattern()) {
+            std::cerr << "格式串解析失败: " << _pattern << std::endl;
+            abort();
+        }
     }
 
     std::string pattern() const { return _pattern; }

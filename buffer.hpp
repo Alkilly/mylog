@@ -32,8 +32,8 @@ class Buffer {
             std::swap(_writer_idx, buf._writer_idx);
         }
         void push(const char *data, size_t len) { 
-            assert(len <= writeAbleSize());
-            ensureEnoughSpace(len);
+            ensureEnoughSpace(len);          // ⚠️ 修复：必须先扩容！
+            assert(len <= writeAbleSize());  // 扩容后再断言才必然成立（防御性检查）
             std::copy(data, data+len, &_v[_writer_idx]);
             _writer_idx += len;
         }

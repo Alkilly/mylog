@@ -13,7 +13,7 @@
 #include <sstream>
 #include <cassert>
 #include <memory>
-#include "util.hpp" // 包含之前优化的跨平台文件操作
+#include "util.hpp" // 包含跨平台文件操作
 
 namespace mylog {
 
@@ -98,8 +98,12 @@ bool isTimeChanged() {
         struct tm lt{};
         localtime_r(&t, &lt); // 线程安全的系统调用 
 
-        // 第一次运行，初始化时间基准
-        if (_last_time == 0) {
+        // ⚠️ 修复：首次运行判定不能用 _last_time == 0！
+        // createFilename() 在第一条日志时就会把 _last_time 设为当前秒，
+        // 导致这里永远走不到初始化分支，_last_mday 保持初始值 0，
+        // 而 tm_mday 合法范围是 1~31，第一次真实比较必然误判“跨天”→ 无条件滚动一次。
+        // 改用哨兵值 -1 判定（tm_mday 最小为 1，-1 绝不冲突）。
+        if (_last_mday == -1) {
             _last_time = t;
             _last_mday = lt.tm_mday; // 记录今天是哪一天
             _last_hour = lt.tm_hour; // 记录当前是几点
@@ -196,8 +200,8 @@ private:
     int _policy; // 存放位掩码组合策略
     time_t _last_time = 0;    // 记录上一次切文件的时间戳
     size_t _file_cnt = 0;     // 同一秒内的文件区分计数器
-    int _last_mday = 0; // 专门用来盯住“天”的哨兵
-    int _last_hour = 0; // 专门用来盯住“小时”的哨兵
+    int _last_mday = -1; // 专门用来盯住“天”的哨兵（-1 表示未初始化，tm_mday 最小为 1）
+    int _last_hour = -1; // 专门用来盯住“小时”的哨兵（同上）
 };
 
 
