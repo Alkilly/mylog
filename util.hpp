@@ -35,14 +35,14 @@ namespace mylog{
                     return std::filesystem::exists(name);
                 }
                 // 3.获取文件所在的目录路径
-                static std::string path(const std::string &name) {
+                inline std::string path(const std::string &name) {
                     if (name.empty()) return ".";
                     size_t pos = name.find_last_of("/\\");
                     if (pos == std::string::npos) return ".";
                     return name.substr(0, pos + 1);
                 } //返回 "." 是为了防止误触操作系统的根目录，确保路径拼接的安全性
                // 4.创建多级目录
-                static void create_directory(const std::string &path) { 
+                inline void create_directory(const std::string &path) { 
                     if (path.empty()) return ;
                     std::filesystem::create_directories(path);
                 }
