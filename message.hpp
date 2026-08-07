@@ -1,0 +1,42 @@
+/*
+ * @Author: Alkili 3495494393@qq.com
+ * @Date: 2026-07-06 21:20:35
+ * @LastEditors: Alkili 3495494393@qq.com
+ * @LastEditTime: 2026-07-09 19:35:45
+ * @FilePath: /project/logs_manage/message.hpp
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
+#ifndef __M_MSG_H__
+#define __M_MSG_H__
+#include "util.hpp"
+#include "level.hpp"
+#include "common.hpp"
+#include <thread>
+
+namespace mylog{
+struct LogMsg {
+    using ptr = LogMsgPtr;
+    //保持一定顺序，定常在前，变长在后
+    size_t _line;//行号
+    size_t _ctime;//时间
+    LogLevel::value _level;//日志等级
+    std::thread::id _tid;//线程ID
+    std::string _name;//日志器名称
+    std::string _file;//文件名
+    std::string _payload;//日志消息
+
+    LogMsg(std::string_view name, std::string_view file, 
+        size_t line, std::string &&payload, LogLevel::value level)
+        : _line(line),
+          _ctime(util::now()),
+          _level(level),
+          _tid(std::this_thread::get_id()),
+          _name(name),          // string_view 转 string 会自动构造
+          _file(file),
+          _payload(std::move(payload)) 
+        {}
+
+};
+}
+
+#endif
