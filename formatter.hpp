@@ -15,6 +15,7 @@
 #include <vector>
 #include <sstream>
 #include <cassert>
+#include <cctype> // std::isalpha
 #include <iostream>
 #include <mutex> // 引入互斥锁以保证多线程安全
 
@@ -88,7 +89,7 @@ public:
 class TabFormatItem : public FormatItem {
 public:
     TabFormatItem() = default;
-    void format(std::ostream &os, const LogMsg &msg) override {
+    void format(std::ostream &os, const LogMsg &) override { // msg 未使用，省略参数名
         os << "\t"; 
     }
 };
@@ -97,7 +98,7 @@ public:
 class NLineFormatItem : public FormatItem {
 public:
     NLineFormatItem() = default;
-    void format(std::ostream &os, const LogMsg &msg) override {
+    void format(std::ostream &os, const LogMsg &) override { // msg 未使用，省略参数名
         os << "\n";
     }
 };
@@ -108,7 +109,7 @@ private:
     std::string _str;
 public:
     explicit OtherFormatItem(std::string str) : _str(std::move(str)) {} // 采用 std::move 避免拷贝
-    void format(std::ostream &os, const LogMsg &msg) override {
+    void format(std::ostream &os, const LogMsg &) override { // msg 未使用，省略参数名
         os << _str; 
     }
 };
@@ -244,10 +245,10 @@ private:
             }
 
             pos += 1; // 跨过 '%'，指向格式化字符（如 d, m 等） 
-            if (pos < _pattern.size() && std::isalpha(_pattern[pos])) {
+            if (pos < _pattern.size() && std::isalpha(static_cast<unsigned char>(_pattern[pos]))) {
                 format_key = _pattern[pos]; // 
             } else {
-                std::cout << "错误: " << _pattern.substr(pos == 0 ? 0 : pos - 1) << " 附近格式解析失败！\n";
+                std::cerr << "错误: " << _pattern.substr(pos == 0 ? 0 : pos - 1) << " 附近格式解析失败！\n";
                 return false; // 
             }
 
@@ -271,7 +272,7 @@ private:
         }
 
         if (sub_format_error) {
-            std::cout << "错误: 格式化花括号 {} 闭合不匹配！\n";
+            std::cerr << "错误: 格式化花括号 {} 闭合不匹配！\n";
             return false; // 
         }
 
@@ -286,7 +287,7 @@ private:
             } else {
                 auto item = createItem(token.key, token.val); // 
                 if (item == nullptr) {
-                    std::cout << "错误: 无法识别的格式化指令 %" << token.key << "\n";
+                    std::cerr << "错误: 无法识别的格式化指令 %" << token.key << "\n";
                     return false;
                 }
                 _items.push_back(item);

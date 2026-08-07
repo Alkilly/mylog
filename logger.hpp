@@ -29,7 +29,7 @@ public:
            Formatter::ptr formatter,
            std::vector<LogSink::ptr> &sinks, 
            LogLevel::value level = LogLevel::value::DEBUG)
-        : _name(name), _level(level), _formatter(formatter),
+        : _name(name), _formatter(formatter), _level(level),
           _sinks(sinks.begin(), sinks.end()) {}
 
     virtual ~Logger() {}
@@ -76,7 +76,7 @@ public:
     class Builder {
     public:
         using ptr = std::shared_ptr<Builder>;
-        Builder() : _level(LogLevel::value::DEBUG), _logger_type(Logger::Type::LOGGER_SYNC) {}
+        Builder() : _logger_type(Logger::Type::LOGGER_SYNC), _level(LogLevel::value::DEBUG) {}
         virtual ~Builder() {}
 
         void buildLoggerName(const std::string &name) { _logger_name = name; }

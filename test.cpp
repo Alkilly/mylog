@@ -21,7 +21,6 @@ void loggerTest(const std::string &logger_name) {
     LOGF("---------------------------------------");
     
     std::string log_msg = "hello bitejiuyeke-";
-    size_t fsize = 0;
     size_t count = 0;
     while(count < 1000000) {
         std::string msg = log_msg + std::to_string(count++);
@@ -40,7 +39,7 @@ void functional_test() {
     lbp->build(); 
     loggerTest("all_sink_logger");
 }
-int main(int argc, char *argv[])
+int main()
 {
     functional_test();
     return 0;

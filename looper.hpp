@@ -19,8 +19,8 @@ namespace mylog{
             using ptr = std::shared_ptr<AsyncLooper>;
         // 构造函数：启动后台“扫地”线程
             explicit AsyncLooper(Functor cb)
-                : _running(true), 
-                _looper_callback(std::move(cb)) {
+                : _looper_callback(std::move(cb)), 
+                _running(true) {
                 // 创建并立刻启动后台线程
                 _thread = std::thread(&AsyncLooper::worker_loop, this);
             }

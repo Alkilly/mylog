@@ -78,7 +78,7 @@ public:
     // 构造函数：默认给它按时间滚动（RollPolicy::BY_TIME）
     RollSink(std::string basename, size_t max_fsize, int policy = RollPolicy::BY_TIME)
         : _basename(std::move(basename)), _max_fsize(max_fsize), 
-          _policy(policy), _cur_fsize(0), _file_cnt(0) {
+          _cur_fsize(0), _policy(policy), _file_cnt(0) {
         util::file::create_directory(util::file::path(_basename));
     }
 
