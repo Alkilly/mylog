@@ -28,7 +28,7 @@ public:
 class LogSink {
 public:
     // 这里建议直接用全局 common.hpp 里的定义，如果保留类内别名，定义一次基类的即可
-    using ptr = std::shared_ptr<LogSink>;
+    using ptr = LogSinkPtr;
 
     LogSink() = default;
     virtual ~LogSink() = default; // 完美的现代虚析构 

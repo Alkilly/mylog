@@ -23,7 +23,7 @@ namespace mylog {
 class Logger {
 public:
     enum class Type { LOGGER_SYNC = 0, LOGGER_ASYNC };
-    using ptr = std::shared_ptr<Logger>; 
+    using ptr = LoggerPtr; 
 
     Logger(const std::string &name, 
            Formatter::ptr formatter,
@@ -75,6 +75,7 @@ public:
     // 关注内容：日志名称 日志等级 打印格式 落地方式
     class Builder {
     public:
+        // ⚠️ 嵌套类无法在 common.hpp 前置声明，ptr 别名只能在此定义（唯一的例外）
         using ptr = std::shared_ptr<Builder>;
         Builder() : _logger_type(Logger::Type::LOGGER_SYNC), _level(LogLevel::value::DEBUG) {}
         virtual ~Builder() {}
@@ -138,7 +139,7 @@ protected:
 
 class SyncLogger : public Logger {
 public:
-    using ptr = std::shared_ptr<SyncLogger>;
+    using ptr = SyncLoggerPtr;
     SyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG)
         : Logger(name, formatter, sinks, level) {
         std::cout << LogLevel::toString(level) << " 同步日志器: " << name << " 创建成功...\n";
@@ -160,7 +161,7 @@ private:
 
 class AsyncLogger : public Logger {
 public:
-    using ptr = std::shared_ptr<AsyncLogger>;
+    using ptr = AsyncLoggerPtr;
     AsyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG)
         : Logger(name, formatter, sinks, level) {
         

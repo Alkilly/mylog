@@ -16,7 +16,7 @@ namespace mylog{
     class AsyncLooper {
         public:
             using Functor = std::function<void(Buffer &buffer)>;
-            using ptr = std::shared_ptr<AsyncLooper>;
+            using ptr = AsyncLooperPtr;
         // 构造函数：启动后台“扫地”线程
             explicit AsyncLooper(Functor cb)
                 : _looper_callback(std::move(cb)), 
