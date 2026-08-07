@@ -9,7 +9,13 @@
 #ifndef __M_LOOP_H__
 #define __M_LOOP_H__
 
-#include <memory>
+#include <memory>        // std::shared_ptr
+#include <string>        // std::string
+#include <thread>        // std::thread
+#include <mutex>         // std::mutex, std::unique_lock
+#include <atomic>        // std::atomic
+#include <condition_variable> // std::condition_variable
+#include <functional>    // std::function
 #include "buffer.hpp"
 
 namespace mylog{
