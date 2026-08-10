@@ -11,7 +11,9 @@
 
 #include <fstream>
 #include <sstream>
-#include <cassert>
+#include <stdexcept> // std::runtime_error
+#include <string>    // std::string
+#include <ctime>     // time_t / time()
 #include <memory>
 #include "util.hpp" // 包含跨平台文件操作
 
@@ -27,14 +29,14 @@ public:
 
 class LogSink {
 public:
-    // 这里建议直接用全局 common.hpp 里的定义，如果保留类内别名，定义一次基类的即可
     using ptr = LogSinkPtr;
-
     LogSink() = default;
-    virtual ~LogSink() = default; // 完美的现代虚析构 
+    virtual ~LogSink() = default;
     
     // 纯虚函数，不同的子类控制不同的落地方向 
     virtual void log(const char *data, size_t len) = 0;
+    // 把用户态缓冲中的数据刷到内核（默认空实现：不需要刷新的 sink 不用管）
+    virtual void flush() {}
 };
 
 
@@ -44,6 +46,9 @@ public:
     StdoutSink() = default;   
     void log(const char *data, size_t len) override {
         std::cout.write(data, len); // 高效流输出，零拷贝 
+    }
+    void flush() override {
+        std::cout.flush(); // 崩溃时屏幕输出同样可能丢，flush 兜底
     }
 };
 
@@ -56,11 +61,33 @@ public:
         // 利用现代 C++17 风格的 util 创建目录 
         util::file::create_directory(util::file::path(filename));
         _ofs.open(_filename, std::ios::binary | std::ios::app);
-        assert(_ofs.is_open()); // 失败前置防御 
+        // ⚠️ 修复：打开失败是运行时环境错误（权限/磁盘满/路径），不是程序 bug
+        // 不能用 assert —— NDEBUG 下被整体吞掉，后续 write 静默失败、日志全丢
+        // 抛异常：调用方可以 catch 后降级（如退回屏幕输出），没人 catch 则 terminate
+        if (!_ofs.is_open()) {
+            throw std::runtime_error("日志文件打开失败: " + _filename);
+        }
     }
     void log(const char *data, size_t len) override {
+        if (!_ofs.is_open()) reopen();   // 上次写失败后尝试重新打开（自动恢复）
         _ofs.write(data, len);
         if (!_ofs.good()) {
+            _ofs.clear();                 // 清除 badbit：否则后续 write 全部被拒，sink 永久残废
+            _ofs.close();
+            reportErrorOnce();            // 限频：同一秒只报一次，避免磁盘满时刷屏
+        }
+    }
+    void flush() override { _ofs.flush(); }
+
+private:
+    void reopen() {
+        _ofs.open(_filename, std::ios::binary | std::ios::app);
+        if (_ofs.is_open()) _last_err_time = 0; // 恢复成功，重置限频
+    }
+    void reportErrorOnce() {
+        time_t now = time(nullptr);
+        if (now != _last_err_time) {
+            _last_err_time = now;
             std::cerr << "日志文件写入失败: " << _filename << std::endl;
         }
     }
@@ -68,6 +95,7 @@ public:
 private:
     std::string _filename;
     std::ofstream _ofs;
+    time_t _last_err_time = 0; // 限频用：上一次报错时间（同一秒只报一次）
 };
 
 
@@ -86,12 +114,23 @@ public:
         initLogFile(len);
         _ofs.write(data, len);
         if (!_ofs.good()) {
-            std::cerr << "滚动日志文件写入失败！" << std::endl;
+            _ofs.clear();
+            _ofs.close();      // 关闭后下次 log 的 initLogFile 会自动重新开新文件（自动恢复）
+            reportErrorOnce(); // 限频报错
+            return;            // 写入失败，不累计大小
         }
         _cur_fsize += len;
     }
+    void flush() override { _ofs.flush(); }
 
 private:
+    void reportErrorOnce() {
+        time_t now = time(nullptr);
+        if (now != _last_err_time) {
+            _last_err_time = now;
+            std::cerr << "滚动日志文件写入失败！" << std::endl;
+        }
+    }
     // 时间是否改变
 bool isTimeChanged() {
         time_t t = time(nullptr);
@@ -159,7 +198,9 @@ private:
             }
             std::string name = createFilename();
             _ofs.open(name, std::ios::binary | std::ios::app);
-            assert(_ofs.is_open());
+            if (!_ofs.is_open()) {
+                throw std::runtime_error("滚动日志文件打开失败: " + name);
+            }
             
             // 状态重置卫兵
             _cur_fsize = 0;
@@ -202,6 +243,7 @@ private:
     size_t _file_cnt = 0;     // 同一秒内的文件区分计数器
     int _last_mday = -1; // 专门用来盯住“天”的哨兵（-1 表示未初始化，tm_mday 最小为 1）
     int _last_hour = -1; // 专门用来盯住“小时”的哨兵（同上）
+    time_t _last_err_time = 0; // 限频用：上一次报错时间
 };
 
 

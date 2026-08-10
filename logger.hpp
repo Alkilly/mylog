@@ -28,14 +28,27 @@ public:
     Logger(const std::string &name, 
            Formatter::ptr formatter,
            std::vector<LogSink::ptr> &sinks, 
-           LogLevel::value level = LogLevel::value::DEBUG)
+           LogLevel::value level = LogLevel::value::DEBUG,
+           size_t flush_bytes = 1 * 1024 * 1024, // 默认攒 1MB 刷一次盘（可配置，0=禁用）
+           size_t flush_lines = 0)               // 默认不按条数刷（可配置，0=禁用）
         : _name(name), _formatter(formatter), _level(level),
-          _sinks(sinks.begin(), sinks.end()) {}
+          _sinks(sinks.begin(), sinks.end()),
+          _flush_bytes(flush_bytes), _flush_lines(flush_lines) {}
 
     virtual ~Logger() {}
 
     std::string loggerName() { return _name; }
     LogLevel::value loggerLevel() { return _level; }
+
+    // 攒批 flush 策略：累计字节/条数达到阈值就刷一次盘（虚函数：同步/异步各有实现）
+    virtual void flush() {
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            for (auto &it : _sinks) it->flush();
+        }
+        _pending_bytes = 0;
+        _pending_lines = 0;
+    }
 
     // 前端一律调用的 5 级输出接口（支持可变参数 printf 风格）
     void debug(const char *file, size_t line, const char *fmt, ...) {
@@ -85,6 +98,8 @@ public:
         void buildLoggerType(Logger::Type type) { _logger_type = type; }
         void buildFormatter(const std::string &pattern) { _formatter = std::make_shared<Formatter>(pattern); }
         void buildFormatter(const Formatter::ptr &formatter) { _formatter = formatter; }
+        // 攒批 flush 策略（默认值：1MB / 不按条数，可自定义）
+        void buildLoggerFlushPolicy(size_t bytes, size_t lines) { _flush_bytes = bytes; _flush_lines = lines; }
         
         template<typename SinkType, typename ...Args>
         void buildSink(Args &&...args) { 
@@ -100,6 +115,8 @@ public:
         LogLevel::value _level;
         Formatter::ptr _formatter;
         std::vector<LogSink::ptr> _sinks;
+        size_t _flush_bytes = 1 * 1024 * 1024; // 攒批 flush 阈值（字节）
+        size_t _flush_lines = 0;               // 攒批 flush 阈值（条数，0=禁用）
     };
 
 protected:
@@ -121,6 +138,14 @@ protected:
         
         // 【多态的关键】调用子类去走不同的路
         logIt(ss.str());
+
+        // 攒批 flush 策略：累计到阈值就刷一次（计数器用 atomic，前端多线程无锁累加安全）
+        _pending_bytes += msg.size();
+        ++_pending_lines;
+        if ((_flush_bytes > 0 && _pending_bytes.load() >= _flush_bytes) ||
+            (_flush_lines > 0 && _pending_lines.load() >= _flush_lines)) {
+            flush();
+        }
     }
 
     // 纯虚函数：逼子类去实现究竟怎么吐出这个字符串
@@ -132,6 +157,10 @@ protected:
     Formatter::ptr _formatter;
     std::atomic<LogLevel::value> _level;
     std::vector<LogSink::ptr> _sinks;
+    size_t _flush_bytes;                     // flush 阈值：累计字节（0=禁用）
+    size_t _flush_lines;                     // flush 阈值：累计条数（0=禁用）
+    std::atomic<size_t> _pending_bytes{0};   // 距上次 flush 的字节数
+    std::atomic<size_t> _pending_lines{0};   // 距上次 flush 的条数
 };
 
 
@@ -140,8 +169,8 @@ protected:
 class SyncLogger : public Logger {
 public:
     using ptr = SyncLoggerPtr;
-    SyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG)
-        : Logger(name, formatter, sinks, level) {
+    SyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG, size_t flush_bytes = 1 * 1024 * 1024, size_t flush_lines = 0)
+        : Logger(name, formatter, sinks, level, flush_bytes, flush_lines) {
         std::cout << LogLevel::toString(level) << " 同步日志器: " << name << " 创建成功...\n";
     }
 
@@ -162,16 +191,18 @@ private:
 class AsyncLogger : public Logger {
 public:
     using ptr = AsyncLoggerPtr;
-    AsyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG)
-        : Logger(name, formatter, sinks, level) {
+    AsyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG, size_t flush_bytes = 1 * 1024 * 1024, size_t flush_lines = 0)
+        : Logger(name, formatter, sinks, level, flush_bytes, flush_lines) {
         
         // 绑定我们之前写好的异步 looper
         // 后端线程拿到货之后，就会执行这个 lambda，加锁遍历 sinks 落地
+        // 每处理完一批就 flush 一次：攒批的意义就是减少 flush 次数，批与批之间刷一次正好
         _looper = std::make_shared<AsyncLooper>([this](Buffer &buf) {
             std::unique_lock<std::mutex> lock(this->_mutex);
             if (this->_sinks.empty()) return;
             for (auto &it : this->_sinks) {
                 it->log(buf.begin(), buf.readAbleSize());
+                it->flush();
             }
         });
         std::cout << LogLevel::toString(level) << " 异步日志器: " << name << " 创建成功...\n";
@@ -181,6 +212,12 @@ private:
     // 异步落地：极其潇洒，出了基类的加工厂后，不写盘，直接丢给异步流水线，瞬间返回！
     virtual void logIt(const std::string &msg) override {
         _looper->push(msg);
+    }
+    // 异步 flush：唤醒后端立即把当前积压处理掉（真正写盘由后端线程完成）
+    virtual void flush() override {
+        _pending_bytes = 0;
+        _pending_lines = 0;
+        _looper->flush();
     }
 
 private:
@@ -209,9 +246,9 @@ public:
 
         // 核心装配逻辑：根据用户的选择，多态生产对应的产品
         if (_logger_type == Logger::Type::LOGGER_ASYNC) {
-            return std::make_shared<AsyncLogger>(_logger_name, _formatter, _sinks, _level);
+            return std::make_shared<AsyncLogger>(_logger_name, _formatter, _sinks, _level, _flush_bytes, _flush_lines);
         } else {
-            return std::make_shared<SyncLogger>(_logger_name, _formatter, _sinks, _level);
+            return std::make_shared<SyncLogger>(_logger_name, _formatter, _sinks, _level, _flush_bytes, _flush_lines);
         }
     }
 };
@@ -312,9 +349,9 @@ public:
         // 3. 根据类型动态多态分流生产
         Logger::ptr lp;
         if (_logger_type == Logger::Type::LOGGER_ASYNC) {
-            lp = std::make_shared<AsyncLogger>(_logger_name, _formatter, _sinks, _level);
+            lp = std::make_shared<AsyncLogger>(_logger_name, _formatter, _sinks, _level, _flush_bytes, _flush_lines);
         } else {
-            lp = std::make_shared<SyncLogger>(_logger_name, _formatter, _sinks, _level);
+            lp = std::make_shared<SyncLogger>(_logger_name, _formatter, _sinks, _level, _flush_bytes, _flush_lines);
         }
 
         // 刚生产出来的 Logger，自动塞进全局单例管理器里注册登记！

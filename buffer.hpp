@@ -19,9 +19,10 @@ class Buffer {
         static constexpr size_t INCREMENT_SIZE  = 1 * 1024 * 1024; // 超过阈值后每次步进 1MB
         static constexpr size_t THRESHOLD_SIZE  = 10 * 1024 * 1024; // 翻倍/步进分界 10MB
         Buffer(): _reader_idx(0), _writer_idx(0), _v(DEFAULT_SIZE){}
-        bool empty() { return _reader_idx == _writer_idx; }
-        size_t readAbleSize() { return _writer_idx - _reader_idx; }
-        size_t writeAbleSize() { return _v.size() - _writer_idx; }
+        bool empty() const { return _reader_idx == _writer_idx; }
+        size_t readAbleSize() const { return _writer_idx - _reader_idx; }
+        size_t writeAbleSize() const { return _v.size() - _writer_idx; }
+        size_t capacity() const { return _v.size(); } // 当前容量（扩容后不回收，有意保留复用）
         void reset() { _reader_idx = _writer_idx = 0; }
         void swap(Buffer &buf)  
         {

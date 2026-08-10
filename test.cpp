@@ -20,7 +20,7 @@ void loggerTest(const std::string &logger_name) {
     LOG_FATAL(lp, "%s", "LOG_FATAL");
     LOGF("---------------------------------------");
     
-    std::string log_msg = "hello bitejiuyeke-";
+    std::string log_msg = "hello new world";
     size_t count = 0;
     while(count < 1000000) {
         std::string msg = log_msg + std::to_string(count++);
