@@ -78,4 +78,4 @@ g++ -std=c++17 -O2 main.cpp -o demo && ./demo   # 示例
 
 ## License
 
-待定（建议 MIT）——见 [LICENSE](LICENSE)（尚未创建）。
+[MIT](LICENSE)
