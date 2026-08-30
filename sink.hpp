@@ -11,14 +11,16 @@
 
 #include <fstream>
 #include <sstream>
+#include <iostream>   // std::cout / std::cerr（自包含：不依赖间接包含）
 #include <stdexcept> // std::runtime_error
 #include <string>    // std::string
 #include <ctime>     // time_t / time()
 #include <memory>
+#include "common.hpp" // LogSinkPtr 全局别名
 #include "util.hpp" // 包含跨平台文件操作
 
 namespace mylog {
-
+// 属于某个类的常量，就写类内 static constexpr，不丢到全局
 class RollPolicy {
 public:
     static constexpr int BY_SIZE = 1 << 0; // 二进制 01：按大小滚动
@@ -39,7 +41,6 @@ public:
     virtual void flush() {}
 };
 
-
 // 2. 标准输出落地类（屏幕）
 class StdoutSink : public LogSink {
 public:
@@ -52,20 +53,20 @@ public:
     }
 };
 
-
 // 3. 固定文件落地类
 class FileSink : public LogSink {
 public:
-    // 单参数构造函数，无脑加 explicit 防隐式转换隐患 
-    explicit FileSink(const std::string &filename) : _filename(filename) {
+    // 单参数构造函数，无脑加 explicit 防隐式转换隐患
+    // 注意：filepath 是完整文件路径（含目录），不是纯文件名——目录会被自动创建
+    explicit FileSink(const std::string &filepath) : _filepath(filepath) {
         // 利用现代 C++17 风格的 util 创建目录 
-        util::file::create_directory(util::file::path(filename));
-        _ofs.open(_filename, std::ios::binary | std::ios::app);
+        util::file::create_directory(util::file::path(filepath));
+        _ofs.open(_filepath, std::ios::binary | std::ios::app);
         // ⚠️ 修复：打开失败是运行时环境错误（权限/磁盘满/路径），不是程序 bug
         // 不能用 assert —— NDEBUG 下被整体吞掉，后续 write 静默失败、日志全丢
         // 抛异常：调用方可以 catch 后降级（如退回屏幕输出），没人 catch 则 terminate
         if (!_ofs.is_open()) {
-            throw std::runtime_error("日志文件打开失败: " + _filename);
+            throw std::runtime_error("日志文件打开失败: " + _filepath);
         }
     }
     void log(const char *data, size_t len) override {
@@ -81,19 +82,19 @@ public:
 
 private:
     void reopen() {
-        _ofs.open(_filename, std::ios::binary | std::ios::app);
+        _ofs.open(_filepath, std::ios::binary | std::ios::app);
         if (_ofs.is_open()) _last_err_time = 0; // 恢复成功，重置限频
     }
     void reportErrorOnce() {
         time_t now = time(nullptr);
         if (now != _last_err_time) {
             _last_err_time = now;
-            std::cerr << "日志文件写入失败: " << _filename << std::endl;
+            std::cerr << "日志文件写入失败: " << _filepath << std::endl;
         }
     }
 
 private:
-    std::string _filename;
+    std::string _filepath;  // 完整文件路径（含目录）
     std::ofstream _ofs;
     time_t _last_err_time = 0; // 限频用：上一次报错时间（同一秒只报一次）
 };
@@ -104,10 +105,11 @@ private:
 class RollSink : public LogSink {
 public:
     // 构造函数：默认给它按时间滚动（RollPolicy::BY_TIME）
-    RollSink(std::string basename, size_t max_fsize, int policy = RollPolicy::BY_TIME)
-        : _basename(std::move(basename)), _max_fsize(max_fsize), 
+    // basepath = 完整目录 + 文件名前缀（如 "./logs/roll-"），实际文件名由 createFilename() 追加时间戳生成
+    RollSink(std::string basepath, size_t max_fsize, int policy = RollPolicy::BY_TIME)
+        : _basepath(std::move(basepath)), _max_fsize(max_fsize), 
           _cur_fsize(0), _policy(policy), _file_cnt(0) {
-        util::file::create_directory(util::file::path(_basename));
+        util::file::create_directory(util::file::path(_basepath));
     }
 
     void log(const char *data, size_t len) override {
@@ -213,7 +215,7 @@ private:
         localtime_r(&t, &lt); // 线程安全的系统调用 
         
         std::stringstream ss;
-        ss << _basename;
+        ss << _basepath;
         ss << lt.tm_year + 1900
            << (lt.tm_mon + 1 < 10 ? "0" : "") << lt.tm_mon + 1
            << (lt.tm_mday < 10 ? "0" : "") << lt.tm_mday
@@ -234,7 +236,7 @@ private:
     }
 
 private:
-    std::string _basename;
+    std::string _basepath;  // 目录 + 文件名前缀（完整路径语义，非纯 basename）
     std::ofstream _ofs;
     size_t _max_fsize;
     size_t _cur_fsize;
@@ -261,3 +263,10 @@ public:
 
 } // namespace mylog
 #endif
+
+/*
+    通过可变参数模板与完美转发，统一构造接口，屏蔽子类构造参数的差异：
+    auto s1 = SinkFactory::create<StdoutSink>();
+    auto s2 = SinkFactory::create<FileSink>("./logs/app.log");
+    auto s3 = SinkFactory::create<RollSink>("./logs/app_", 10 * 1024 * 1024, RollPolicy::BY_SIZE | RollPolicy::BY_TIME);
+*/

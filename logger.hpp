@@ -10,13 +10,15 @@
 #define __M_LOG_H__
 
 #include <cstdarg>
+#include <iostream>     // std::cout（SyncLogger/AsyncLogger 构造打印）
+#include <memory>       // std::make_unique
+#include <unordered_map> // LoggerManager 的 _loggers 仓库
 // 引入你之前写好的各个核心零件
 #include "formatter.hpp"
 #include "sink.hpp"
-#include "looper.hpp" // 包含我们刚搞懂的异步 AsyncLooper
+#include "looper.hpp" 
 
 namespace mylog {
-
 
 // 1. 日志器基类 (Logger)
 
@@ -83,12 +85,11 @@ public:
     }
 
 public:
-    
     // 2. 嵌套建造者基类 (Builder)
     // 关注内容：日志名称 日志等级 打印格式 落地方式
     class Builder {
     public:
-        // ⚠️ 嵌套类无法在 common.hpp 前置声明，ptr 别名只能在此定义（唯一的例外）
+        // ⚠️ 嵌套类无法在 common.hpp 前置声明，ptr 别名只能在此定义
         using ptr = std::shared_ptr<Builder>;
         Builder() : _logger_type(Logger::Type::LOGGER_SYNC), _level(LogLevel::value::DEBUG) {}
         virtual ~Builder() {}
@@ -143,7 +144,8 @@ protected:
         _pending_bytes += msg.size();
         ++_pending_lines;
         if ((_flush_bytes > 0 && _pending_bytes.load() >= _flush_bytes) ||
-            (_flush_lines > 0 && _pending_lines.load() >= _flush_lines)) {
+            (_flush_lines > 0 && _pending_lines.load() >= _flush_lines)) 
+        {
             flush();
         }
     }
@@ -166,14 +168,14 @@ protected:
 
 // 3. 同步日志器子类 (SyncLogger)
 
-class SyncLogger : public Logger {
+class SyncLogger : public Logger 
+{
 public:
     using ptr = SyncLoggerPtr;
     SyncLogger(const std::string &name, Formatter::ptr formatter, std::vector<LogSink::ptr> &sinks, LogLevel::value level = LogLevel::value::DEBUG, size_t flush_bytes = 1 * 1024 * 1024, size_t flush_lines = 0)
         : Logger(name, formatter, sinks, level, flush_bytes, flush_lines) {
         std::cout << LogLevel::toString(level) << " 同步日志器: " << name << " 创建成功...\n";
     }
-
 private:
     // 同步落地：业务线程自己拿着锁，去把所有的目的地（写文件/写控制台）遍历写一遍
     virtual void logIt(const std::string &msg) override {
@@ -184,7 +186,6 @@ private:
         }
     }
 };
-
 
 // 4. 异步日志器子类 (AsyncLogger)
 
@@ -360,8 +361,6 @@ public:
     }
 };
 
-
 } 
-
 
 #endif

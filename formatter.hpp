@@ -129,10 +129,8 @@ public:
     explicit TimeFormatItem(std::string format = "%H:%M:%S") : _format(std::move(format)) {
         if (_format.empty()) _format = "%H:%M:%S"; 
     }
-
     void format(std::ostream &os, const LogMsg &msg) override {
         time_t current_time = msg._ctime; // 拿到当前日志的时间戳
-
         {
             // 1. 使用 C++ 的 lock_guard 自动加锁，保证多线程安全
             std::lock_guard<std::mutex> lock(_mutex);

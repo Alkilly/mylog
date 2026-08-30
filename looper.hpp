@@ -6,6 +6,12 @@
  * @FilePath: /project/looper.hpp
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
+/*  实现一个异步日志工作轮询器（AsyncLooper）
+    将高频的业务线程日志写入（CPU/内存操作）与耗时的磁盘 I/O（落盘操作）彻底解耦。
+    业务线程只需把数据塞进内存缓冲区便能毫秒级返回，
+    底层的阻塞写盘由一个独立的后台工作线程慢慢处理。
+*/
+
 #ifndef __M_LOOP_H__
 #define __M_LOOP_H__
 
@@ -18,6 +24,7 @@
 #include <functional>    // std::function
 #include <chrono>        // std::chrono::milliseconds
 #include <csignal>       // std::signal / std::raise / sig_atomic_t
+#include "common.hpp"    // AsyncLooperPtr 全局别名（自包含）
 #include "buffer.hpp"
 
 namespace mylog{
@@ -42,6 +49,8 @@ namespace mylog{
 
     class AsyncLooper {
         public:
+        //纯类型写法 std::function<void(Buffer &)> 是业界最标准的惯用形式
+        //遇到带变量名的写法只需把它当成纯注释性命名即可
             using Functor = std::function<void(Buffer &buffer)>;
             using ptr = AsyncLooperPtr;
         // 构造函数：启动后台“扫地”线程
@@ -61,7 +70,7 @@ namespace mylog{
             void stop()
             { 
                 _running = false; 
-            // 唤醒可能正在等待的前端/后端线程
+                // 唤醒可能正在等待的前端/后端线程
                 _con_cond.notify_all(); 
                 _pro_cond.notify_all();
                 
@@ -71,26 +80,27 @@ namespace mylog{
                     _thread.join();
                 }
             }
+            // 生产者入口
             void push(const std::string &msg){
                 if (!_running ) return;
                 bool need_wake = false;
                 {
                     std::unique_lock<std::mutex> lock(_mutex);
-                    _pro_cond.wait(lock, [&]{ 
+                    _pro_cond.wait(lock, [&]{ // 条件变量等待：直到写空间足够 或 缓冲区为空 或 正在停止
                         return _pro_buf.writeAbleSize() >= msg.size()|| _pro_buf.empty() || !_running; });  // 空缓冲直接放行，push 内部会 ensureEnoughSpace 扩容
                         if(!_running) return; // 打烊了，这条丢弃，不再入队 
-                    _pro_buf.push(msg.c_str(), msg.size());
+                    _pro_buf.push(msg.c_str(), msg.size());// 塞入前端缓冲区（空间不足自动扩容）
                     // 数据量 ≥ 容量 1/4 才唤醒后端（热路径加速）；稀疏流量由后端 1s 定时兜底
                     need_wake = _pro_buf.readAbleSize() >= _pro_buf.capacity() / 4;
                 }
                 if (need_wake) _con_cond.notify_one(); // 后端线程仅1个
             }
         private:
-            void worker_loop(){
+            void worker_loop(){ //后台线程常驻的执行函数，分为加锁拿数据与锁外写数据两阶段
                 while(true){
                     {
                         std::unique_lock<std::mutex> lock(_mutex);
-                        // 崩溃兑底：把最后一批数据紧急落盘
+                        // 1. 信号崩溃优先处理
                         if (g_crash_flush) {
                             if (!_pro_buf.empty()) {
                                 _pro_buf.swap(_con_buf); // 拿货，去锁外处理
@@ -102,15 +112,20 @@ namespace mylog{
                                 std::raise(g_crash_sig);
                                 return;
                             }
-                        } else if (!_running  && _pro_buf.empty()) { return; }
+                        } else if (!_running  && _pro_buf.empty()) { return; }// 正常打烊退出
+                        // 2. 超时等待：有数据、打烊或定时到期（1s）
                         _con_cond.wait_for(lock,_flush_interval,[&]{
                             return !_pro_buf.empty() || !_running || g_crash_flush;
                         });
-                        if (_pro_buf.empty()) continue;                       // 空转超时：不交换不回调 
+                        if (_pro_buf.empty()) continue; // 空转超时：不交换不回调 
+                        // 3. 核心步骤：微秒级交换
                         _pro_buf.swap(_con_buf);
                     }
+                    //4.唤醒可能阻塞的前端线程
                     _pro_cond.notify_all();
+                    // 5. 锁外执行落盘，耗时 I/O 绝不阻塞前端 push
                     _looper_callback(_con_buf);
+                    // 6. 重置消费缓冲区，准备下一轮
                     _con_buf.reset();
                 }
                 return;

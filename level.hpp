@@ -30,8 +30,7 @@ public:
         };
         // 安全检查：如果数值越界，返回 UNKNOWN
         size_t idx = static_cast<size_t>(l);
-        if (idx >= std::size(names)) 
-        {
+        if (idx >= std::size(names)) {
             return names[0];
         }
             return names[idx];

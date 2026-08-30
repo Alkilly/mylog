@@ -11,10 +11,15 @@
 #include <algorithm>  // std::copy, std::swap
 #include <cassert>    // assert
 #include <cstddef>    // size_t
+#ifndef __M_BUFFER_H__
+#define __M_BUFFER_H__
+
 namespace mylog{
 class Buffer {
     public: //前端传送数据，后端写入磁盘
         // 容量策略常量（C++17 起 static constexpr 成员隐式 inline，无需类外定义）
+        // static 属于类，不是对象：全局只有一份，不增加对象大小
+        // constexpr 编译期常量，值在编译时就确定。
         static constexpr size_t DEFAULT_SIZE    = 1 * 1024 * 1024; // 初始容量 1MB
         static constexpr size_t INCREMENT_SIZE  = 1 * 1024 * 1024; // 超过阈值后每次步进 1MB
         static constexpr size_t THRESHOLD_SIZE  = 10 * 1024 * 1024; // 翻倍/步进分界 10MB
@@ -59,3 +64,4 @@ class Buffer {
         std::vector<char> _v;
 };
 }
+#endif
