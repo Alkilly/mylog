@@ -1,11 +1,3 @@
-/*
- * @Author: Alkili 3495494393@qq.com
- * @Date: 2026-07-07 20:10:12
- * @LastEditors: Alkili 3495494393@qq.com
- * @LastEditTime: 2026-07-08 09:25:34
- * @FilePath: /project/looper.hpp
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 /*  实现一个异步日志工作轮询器（AsyncLooper）
     将高频的业务线程日志写入（CPU/内存操作）与耗时的磁盘 I/O（落盘操作）彻底解耦。
     业务线程只需把数据塞进内存缓冲区便能毫秒级返回，

@@ -1,12 +1,3 @@
-/*
- * @Author: Alkili 3495494393@qq.com
- * @Date: 2026-07-07 20:11:31
- * @LastEditors: Alkili 3495494393@qq.com
- * @LastEditTime: 2026-07-07 20:27:36
- * @FilePath: /project/buffer.hpp
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
-
 #include <vector>     // std::vector
 #include <algorithm>  // std::copy, std::swap
 #include <cassert>    // assert
