@@ -36,7 +36,7 @@ int main() {
     auto builder = std::make_unique<mylog::GlobalLoggerBuilder>();
     builder->buildLoggerName("app");
     builder->buildLoggerType(mylog::Logger::Type::LOGGER_ASYNC);
-    builder->buildFormatter("%H:%M:%S [%t] [%l] [%c:%n] %m");
+    builder->buildFormatter("[%d{%H:%M:%S}][%t][%l][%c] %m%n");
     builder->buildSink<mylog::FileSink>("./logs/app.log");
     builder->buildSink<mylog::RollSink>("./logs/roll-", 10 * 1024 * 1024, mylog::RollPolicy::BY_SIZE);
     auto logger = builder->build();
@@ -72,9 +72,22 @@ mylog.h(宏) → logger.hpp(Logger/Sync/Async/Builder/Manager)
 ## 构建与测试
 
 ```bash
-g++ -std=c++17 -O2 test.cpp -o test && ./test   # 功能测试（含 100 万条异步压测）
-g++ -std=c++17 -O2 main.cpp -o demo && ./demo   # 示例
+g++ -std=c++17 -O2 -Wall -Wextra test.cpp -o test && ./test   # 功能测试（含 100 万条压测）
+g++ -std=c++17 -O2 -Wall -Wextra bench.cpp -o bench && ./bench # 性能基准测试
 ```
+
+## 性能基准
+
+> 测试环境：i5-12450H（受限 2 核）· GCC 11.4.0 · `-O2` · 格式 `[%d{%H:%M:%S}][%c][%l] %m%n` · 每项 3 轮取最优
+
+| 场景 | 同步 SyncLogger | 异步 AsyncLogger | 结论 |
+| --- | --- | --- | --- |
+| 单线程 100 万条 | 205 万条/s（196 MB/s） | 196 万条/s（187 MB/s） | 基本持平（±5%），同步略优 |
+| 4 线程 × 25 万条 | 153 万条/s | **236 万条/s** | 异步 **+54%** |
+
+- **高并发完整性**：4 线程 100 万条，日志文件逐行校验——缺失 0、乱序 0
+- **崩溃容错**：异步写入 10 万条后真实触发 SIGSEGV，进程以段错误退出，日志**一行不丢**（信号处理器只置 `volatile sig_atomic_t` 标志，后端线程轮询紧急落盘后重放信号保留 core dump）
+- 单线程下异步并不更快，它的价值在**高并发解耦**：业务线程 push 即返回、落盘交给后台；受限 2 核环境下 4 线程已领先 54%，多核服务器优势更大
 
 ## License
 

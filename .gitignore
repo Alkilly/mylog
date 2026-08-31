@@ -3,6 +3,7 @@
 *.a
 *.so
 test
+bench
 build/
 
 # 运行产生的日志文件
