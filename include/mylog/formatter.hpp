@@ -11,7 +11,7 @@
 #ifndef __M_FMT_H__
 #define __M_FMT_H__
 
-#include "message.hpp"
+#include "mylog/message.hpp"
 #include <vector>
 #include <sstream>
 #include <cassert>

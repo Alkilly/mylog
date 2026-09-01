@@ -1,14 +1,19 @@
+/*
+ * @Author: Alkili 3495494393@qq.com
+ * @Date: 2026-07-08 09:24:09
+ * @LastEditors: Alkili 3495494393@qq.com
+ * @LastEditTime: 2026-07-09 19:06:21
+ * @FilePath: /project/logs_manage/logger.hpp
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #ifndef __M_LOG_H__
 #define __M_LOG_H__
 
 #include <cstdarg>
-#include <iostream>     // std::cout（SyncLogger/AsyncLogger 构造打印）
-#include <memory>       // std::make_unique
-#include <unordered_map> // LoggerManager 的 _loggers 仓库
 // 引入你之前写好的各个核心零件
-#include "formatter.hpp"
-#include "sink.hpp"
-#include "looper.hpp" 
+#include "mylog/formatter.hpp"
+#include "mylog/sink.hpp"
+#include "mylog/looper.hpp" 
 
 namespace mylog {
 
@@ -174,7 +179,7 @@ private:
         std::unique_lock<std::mutex> lock(_mutex);
         if (_sinks.empty()) return;
         for (auto &it : _sinks) {
-            it->log(msg.c_str(), msg.size());
+            it->log(msg.c_str(), msg.size());//  业务线程亲自去写文件/屏幕
         }
     }
 };
@@ -194,7 +199,7 @@ public:
             std::unique_lock<std::mutex> lock(this->_mutex);
             if (this->_sinks.empty()) return;
             for (auto &it : this->_sinks) {
-                it->log(buf.begin(), buf.readAbleSize());
+                it->log(buf.begin(), buf.readAbleSize()); // 由后台工作线程慢慢写盘
                 it->flush();
             }
         });

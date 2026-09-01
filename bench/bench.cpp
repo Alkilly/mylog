@@ -10,7 +10,7 @@
 // 编译：g++ -std=c++17 -O2 -Wall -Wextra bench.cpp -o bench
 // 运行：./bench
 // ============================================================
-#include "mylog.h"
+#include "mylog/mylog.h"
 
 #include <chrono>
 #include <cstdio>

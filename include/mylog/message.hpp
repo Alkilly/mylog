@@ -1,8 +1,8 @@
 #ifndef __M_MSG_H__
 #define __M_MSG_H__
-#include "util.hpp"
-#include "level.hpp"
-#include "common.hpp"
+#include "mylog/util.hpp"
+#include "mylog/level.hpp"
+#include "mylog/common.hpp"
 #include <thread>
 
 namespace mylog{

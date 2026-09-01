@@ -8,8 +8,8 @@
 #include <string>    // std::string
 #include <ctime>     // time_t / time()
 #include <memory>
-#include "common.hpp" // LogSinkPtr 全局别名
-#include "util.hpp" // 包含跨平台文件操作
+#include "mylog/common.hpp" // LogSinkPtr 全局别名
+#include "mylog/util.hpp" // 包含跨平台文件操作
 
 namespace mylog {
 // 属于某个类的常量，就写类内 static constexpr，不丢到全局

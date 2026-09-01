@@ -26,7 +26,7 @@
 ## 快速开始
 
 ```cpp
-#include "mylog.h"
+#include "mylog/mylog.h"
 
 int main() {
     // 一键打到默认 root 日志器（屏幕输出）
@@ -49,6 +49,8 @@ int main() {
 
 ## 架构
 
+> 以下文件均位于 `include/mylog/` 下。
+
 ```
 mylog.h(宏) → logger.hpp(Logger/Sync/Async/Builder/Manager)
             → formatter.hpp(FormatItem 家族 + 状态机解析)
@@ -59,21 +61,30 @@ mylog.h(宏) → logger.hpp(Logger/Sync/Async/Builder/Manager)
 
 ## 目录结构
 
-| 文件 | 职责 |
-| --- | --- |
-| `mylog.h` | 对外宏（LOG_INFO 等），快捷获取 logger |
-| `logger.hpp` | Logger 基类 / SyncLogger / AsyncLogger / Builder / LoggerManager |
-| `formatter.hpp` | 格式化：FormatItem 零件家族 + 状态机解析 |
-| `sink.hpp` | 落地：LogSink 家族 + 位掩码滚动策略 + 完美转发工厂 |
-| `looper.hpp` | 异步调度：双缓冲 + 双条件变量 + 崩溃兜底 |
-| `buffer.hpp` | 线性缓冲：扩容策略 / swap / pop |
-| `message.hpp` `level.hpp` `util.hpp` `common.hpp` | 消息体 / 级别枚举 / 文件工具 / 全局别名 |
+```
+include/mylog/          # 全部公共头文件（header-only）
+  ├── mylog.h           # 对外宏（LOG_INFO 等），快捷获取 logger
+  ├── logger.hpp        # Logger 基类 / SyncLogger / AsyncLogger / Builder / LoggerManager
+  ├── formatter.hpp     # 格式化：FormatItem 零件家族 + 状态机解析
+  ├── sink.hpp          # 落地：LogSink 家族 + 位掩码滚动策略 + 完美转发工厂
+  ├── looper.hpp        # 异步调度：双缓冲 + 双条件变量 + 崩溃兜底
+  ├── buffer.hpp        # 线性缓冲：扩容策略 / swap / pop
+  ├── message.hpp       # 消息体
+  ├── level.hpp         # 级别枚举
+  ├── util.hpp          # 文件工具
+  └── common.hpp        # 全局别名
+examples/main.cpp       # 使用示例
+tests/test.cpp          # 功能测试（含 100 万条压测）
+bench/bench.cpp         # 性能基准测试
+```
 
 ## 构建与测试
 
 ```bash
-g++ -std=c++17 -O2 -Wall -Wextra test.cpp -o test && ./test   # 功能测试（含 100 万条压测）
-g++ -std=c++17 -O2 -Wall -Wextra bench.cpp -o bench && ./bench # 性能基准测试
+# 功能测试（含 100 万条压测）
+g++ -std=c++17 -O2 -Wall -Wextra -I include tests/test.cpp -o tests/test && ./tests/test
+# 性能基准测试
+g++ -std=c++17 -O2 -Wall -Wextra -I include bench/bench.cpp -o bench/bench && ./bench/bench
 ```
 
 ## 性能基准

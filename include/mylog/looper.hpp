@@ -16,8 +16,8 @@
 #include <functional>    // std::function
 #include <chrono>        // std::chrono::milliseconds
 #include <csignal>       // std::signal / std::raise / sig_atomic_t
-#include "common.hpp"    // AsyncLooperPtr 全局别名（自包含）
-#include "buffer.hpp"
+#include "mylog/common.hpp"    // AsyncLooperPtr 全局别名（自包含）
+#include "mylog/buffer.hpp"
 
 namespace mylog{
     // ====== 崩溃兑底：信号 → 紧急落盘 ======
